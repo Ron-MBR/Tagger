@@ -27,6 +27,7 @@ namespace Tagger.Services
         
         private readonly DynamicRequestsStore<long> _requests = new DynamicRequestsStore<long>();
         private readonly DynamicTokensStore _tokens = new DynamicTokensStore();
+        private readonly DynamicCounterStore _counters = new DynamicCounterStore();
         private string GenerateToken(int length)
         {
             var random = new Random();
@@ -214,7 +215,8 @@ namespace Tagger.Services
                 {
                     if (await MasterValidator(message))
                     {
-                        await SendGenQr(message.Chat.Id);
+                        _counters.Add(message.Chat.Id);
+                        await SendGenQr(message.Chat.Id,_counters.Get(message.Chat.Id));
                     }
                     break;
                 }
@@ -373,6 +375,7 @@ namespace Tagger.Services
                     if (teacherId == message.Chat.Id)
                     {
                         _tokens.Remove(_tkn);
+                        _counters.Remove(message.Chat.Id);
                         _botClient.SendMessage(
                             chatId: message.Chat.Id,
                             text: "Вы закончили перекличку, токены удалены <3"
@@ -396,7 +399,8 @@ namespace Tagger.Services
                             chatId: message.Chat.Id,
                             text: "Вы отмечены, хорошего дня)"
                         );
-                        await SendGenQr(teacherId);
+                        _counters.Push(teacherId);
+                        await SendGenQr(teacherId,_counters.Get(teacherId));
                     }
 
                     return;
@@ -429,14 +433,14 @@ namespace Tagger.Services
             await _botClient.SendPhoto(teacherId, inputFfile);
         }*/
         
-        private async Task SendGenQr(long teacherId)
+        private async Task SendGenQr(long teacherId, int? counter)
         {
             var _nexttkn = GenerateToken(12);
             _tokens.Add(_nexttkn, teacherId);
 
             MemoryStream streamchek = new MemoryStream(qrService.GenerateQr(_nexttkn,40));
             var inputFfile = new InputFileStream(streamchek, Path.GetFileName(_genqrpath));
-            await _botClient.SendPhoto(teacherId, inputFfile);
+            await _botClient.SendPhoto(teacherId, inputFfile,caption: counter.ToString());
                 
         }
     }
